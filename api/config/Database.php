@@ -22,9 +22,9 @@ class Database
 
             $host = Config::get('DB_HOST', '127.0.0.1');
             $port = Config::get('DB_PORT', '3306');
-            $dbname = Config::get('DB_DATABASE', 'caravan_accounting');
-            $user = Config::get('DB_USERNAME', 'root');
-            $pass = Config::get('DB_PASSWORD', '');
+            $dbname = Config::get('DB_DATABASE') ?: Config::get('DB_NAME', 'caravan_accounting');
+            $user = Config::get('DB_USERNAME') ?: Config::get('DB_USER', 'root');
+            $pass = Config::get('DB_PASSWORD') ?? Config::get('DB_PASS', '');
 
             $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset=utf8mb4";
 

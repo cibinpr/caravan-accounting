@@ -61,11 +61,13 @@ class Config
             'COMPANY_CURRENCY_SYMBOL' => '₹',
         ], self::$settings);
 
+        self::$loaded = true;
+
         // Timezone setup
-        date_default_timezone_set(self::get('APP_TIMEZONE', 'Asia/Kolkata'));
+        date_default_timezone_set((string)self::get('APP_TIMEZONE', 'Asia/Kolkata'));
 
         // PHP Security & Error Logging configuration (NFR-SEC-7)
-        $isDebug = filter_var(self::get('APP_DEBUG'), FILTER_VALIDATE_BOOLEAN);
+        $isDebug = filter_var(self::get('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN);
         ini_set('display_errors', $isDebug ? '1' : '0');
         ini_set('display_startup_errors', $isDebug ? '1' : '0');
         ini_set('log_errors', '1');
@@ -75,8 +77,6 @@ class Config
             @mkdir($logDir, 0755, true);
         }
         ini_set('error_log', $logDir . '/php_error.log');
-
-        self::$loaded = true;
     }
 
     public static function get(string $key, mixed $default = null): mixed

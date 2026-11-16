@@ -10,7 +10,11 @@ declare(strict_types=1);
 // Simple autoloader
 spl_autoload_register(function (string $class) {
     if (str_starts_with($class, 'App\\Config\\')) {
-        $file = dirname(__DIR__) . '/config/' . substr($class, strlen('App\\Config\\')) . '.php';
+        $sub = substr($class, strlen('App\\Config\\'));
+        $file = dirname(__DIR__) . '/config/' . $sub . '.php';
+        if (!file_exists($file)) {
+            $file = dirname(__DIR__) . '/config/' . strtolower($sub) . '.php';
+        }
         if (file_exists($file)) {
             require_once $file;
         }
