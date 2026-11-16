@@ -1,0 +1,8 @@
+# Deny all direct web access to uploaded bills (FR-BILL-3, FR-BILL-4)
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Deny from all
+</IfModule>
+Options -Indexes

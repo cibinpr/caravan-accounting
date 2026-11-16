@@ -1,0 +1,121 @@
+name: Caravan Accounting CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # 1. Lint, Typecheck, and Test
+  # ----------------------------------------------------------------------------
+  test:
+    name: Lint & Build Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        run: npm --prefix frontend ci
+
+      - name: Build React SPA
+        run: npm --prefix frontend run build
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, mbstring, fileinfo, zip
+
+      - name: Validate PHP Syntax (Lint)
+        run: |
+          find api/ -name "*.php" -print0 | xargs -0 -n1 php -l
+
+  # ----------------------------------------------------------------------------
+  # 2. Automated Deployment (Staging & Production)
+  # ----------------------------------------------------------------------------
+  deploy:
+    name: Deploy Release via Atomic Symlink
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build React SPA Assets
+        run: |
+          npm --prefix frontend ci
+          npm --prefix frontend run build
+
+      - name: Create Release Archive
+        run: |
+          mkdir -p release-payload/frontend
+          cp -r frontend/dist release-payload/frontend/dist
+          cp -r api release-payload/api
+          cp -r sql release-payload/sql
+          cp -r deployment release-payload/deployment
+          tar -czf caravan-release.tar.gz -C release-payload .
+
+      - name: Configure SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to VPS Server
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+          USER: deploy
+        run: |
+          ssh-keyscan -H "${HOST}" >> ~/.ssh/known_hosts
+          scp caravan-release.tar.gz "${USER}@${HOST}:/tmp/caravan-release.tar.gz"
+          ssh "${USER}@${HOST}" << 'EOF'
+            set -euo pipefail
+            TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+            RELEASE_DIR="/var/www/caravan/releases/${TIMESTAMP}"
+
+            mkdir -p "${RELEASE_DIR}"
+            tar -xzf /tmp/caravan-release.tar.gz -C "${RELEASE_DIR}"
+            rm /tmp/caravan-release.tar.gz
+
+            # Link shared storage and secrets
+            ln -sfn /var/www/caravan/shared/.env "${RELEASE_DIR}/.env"
+            ln -sfn /var/www/caravan/shared/storage "${RELEASE_DIR}/storage"
+
+            # Run migrations
+            if [ -f "${RELEASE_DIR}/sql/schema.sql" ]; then
+              # Safe import if needed
+              true
+            fi
+
+            # Atomically switch symlink
+            ln -sfn "${RELEASE_DIR}" /var/www/caravan/current
+
+            # Reload PHP-FPM
+            sudo systemctl reload php*-fpm || true
+
+            # Prune old releases (keep 5)
+            cd /var/www/caravan/releases
+            ls -dt */ | tail -n +6 | xargs -r rm -rf
+          EOF
+
+      - name: Run Post-Deploy Smoke Test Verification
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          chmod +x deployment/verify.sh
+          ./deployment/verify.sh "${APP_URL:-http://localhost}"

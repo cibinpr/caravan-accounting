@@ -1,0 +1,4 @@
+# Keep directory in git but ignore stored logs
+*
+!.gitignore
+!.htaccess
