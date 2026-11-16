@@ -216,3 +216,5 @@ server {
   - Scheduled backup automation (`deployment/backup.sh`) with 30-day retention & offsite sync (DEP-7)
   - Automated deployment verification suite (`deployment/verify.sh`) for the Section 8.12 checklist
   - GitHub Actions CI/CD workflow (`.github/workflows/deploy.yml`)
+#   c a r a v a n - a c c o u n t i n g  
+ 
